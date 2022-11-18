@@ -1,13 +1,11 @@
 package org.estasney.android;
 
-import static java.nio.file.StandardCopyOption.COPY_ATTRIBUTES;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
-
 import android.content.ContentResolver;
+import android.content.Context;
+import android.net.Uri;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
-import androidx.documentfile.provider.DocumentFile;
 
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -17,12 +15,9 @@ import com.google.common.util.concurrent.MoreExecutors;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.FileSystems;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 
 
@@ -30,83 +25,40 @@ public class MindRefUtils {
     private static final String TAG = "mindrefutils";
     private final ListeningExecutorService service;
     private static final int NUMBER_OF_CORES = Runtime.getRuntime().availableProcessors();
+    private final Context mContext;
+    private final Uri externalStorageUri;
+    private final Path appStoragePath;
+    public final String externalStorageRoot;
+    public final String appStorageRoot;
 
-    public MindRefUtils() {
+    /**
+     * Constructor for MindRefUtils
+     * @param externalStorageRoot - String representing the URI returned from user selecting document storage
+     * @param appStorageRoot - String representing the Filepath to a folder that will mirror externalStorageRoot
+     */
+    public MindRefUtils(String externalStorageRoot, String appStorageRoot, Context context) {
+        Uri externalStorageRootUri = Uri.parse(externalStorageRoot);
+        this.mContext = context;
+        this.externalStorageUri = MindRefFileUtils.contentToDocumentUri(externalStorageRootUri, this.mContext);
+        this.appStoragePath = FileSystems.getDefault().getPath(appStorageRoot);
         this.service = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(NUMBER_OF_CORES));
+        this.externalStorageRoot = externalStorageRoot;
+        this.appStorageRoot = appStorageRoot;
     }
 
-    private static Path combinePath(String p1, String p2) {
-        return FileSystems.getDefault().getPath(p1, p2);
-    }
-
-    private static void createDirectoryIfNeeded(@NonNull File f) {
-        if (!f.exists()) {
-            Log.v(TAG, String.format("creating directory %s", f));
-            boolean b = f.mkdir();
-        }
-    }
-
-    private static Path constructMirroredPath(@NonNull DocumentFile src, Path targetRoot) {
-        if (src.isDirectory()) {
-            // Check if corresponding target directory exists
-            Path targetDirPath = combinePath(targetRoot.toString(), src.getName());
-            File targetDir = targetDirPath.toFile();
-            createDirectoryIfNeeded(targetDir);
-            return targetDirPath;
-        } else {
-            return combinePath(targetRoot.toString(), src.getName());
-        }
-    }
-
-    // Get Categories
+    /**
+     * Get Categories
+     */
     public interface GetCategoriesCallback {
         void onComplete(String[] categories);
     }
+
     private GetCategoriesCallback getCategoriesCallback;
     private boolean haveGetCategoriesCallback = false;
+
     public void setGetCategoriesCallback(GetCategoriesCallback callback) {
-        Log.d(TAG, "setGetCategoriesCallback");
         this.getCategoriesCallback = callback;
         this.haveGetCategoriesCallback = true;
-    }
-    public static class GetCategoriesRunner {
-        public static ArrayList<String> getCategories(@NonNull DocumentFile srcFolder, File targetDir, ContentResolver contentResolver) throws IOException {
-            DocumentFile[] childFiles = srcFolder.listFiles();
-            ArrayList<String> results = new ArrayList<>();
-            for (DocumentFile srcChild : childFiles) {
-                if (srcChild.isDirectory()) {
-                    // This is a category
-                    String categoryName = srcChild.getName();
-                    DocumentFile categoryImg = null;
-                    Path targetChildDir = combinePath(targetDir.getPath(), categoryName);
-                    File targetChildDirFile = targetChildDir.toFile();
-                    for (DocumentFile categoryChild : srcChild.listFiles()) {
-                        String ccMime = categoryChild.getType();
-                        if (ccMime == null) {
-                            continue;
-                        }
-                        if (ccMime.startsWith("image/")) {
-                            categoryImg = categoryChild;
-                            break;
-                        }
-                    }
-                    // Copy basic folder structure and image if it exists
-                    if (!targetChildDirFile.exists()) {
-                        if (!targetChildDirFile.mkdir()) {
-                            throw new IOException(String.format("Unable to create directory %s", targetChildDirFile.getPath()));
-                        }
-                    }
-                    if (categoryImg != null) {
-                        Path targetChildImgFile = constructMirroredPath(categoryImg, targetChildDirFile.toPath());
-                        InputStream imgInputStream = contentResolver.openInputStream(categoryImg.getUri());
-                        Files.copy(imgInputStream, targetChildImgFile, REPLACE_EXISTING);
-                    }
-                    results.add(categoryName);
-                }
-            }
-            return results;
-        }
-
     }
 
     // Copy Storage
@@ -119,81 +71,26 @@ public class MindRefUtils {
         void onNoteDiscoveryResult(String category, String imagePath, String[] notes);
 
     }
+
     private CopyStorageCallback storageCallback;
     private boolean haveStorageCallback = false;
+
     public void setStorageCallback(CopyStorageCallback callback) {
         this.storageCallback = callback;
         this.haveStorageCallback = true;
-
-    }
-    public static class CopyTaskRunner {
-
-        public static void mirrorFile(DocumentFile srcFile, Path targetPath, ContentResolver contentResolver) throws IOException {
-            File targetFile = targetPath.toFile();
-            if (targetFile.exists()) {
-                long srcMod = srcFile.lastModified();
-                long tgtMod = targetFile.lastModified();
-                if (srcMod > tgtMod) {
-                    Log.v(TAG, String.format("srcFile : %s is newer than targetFile %s, by %d", srcFile.getName(), targetFile.getName(), srcMod - tgtMod));
-                    InputStream inputStream = contentResolver.openInputStream(srcFile.getUri());
-                    Files.copy(inputStream, targetPath, REPLACE_EXISTING, COPY_ATTRIBUTES);
-                } else {
-                    Log.v(TAG, String.format("targetFile : %s is current with srcFile %s", srcFile.getName(), targetFile.getName()));
-                }
-            } else {
-                Log.d(TAG, "srcFile : %s not present");
-                InputStream inputStream = contentResolver.openInputStream(srcFile.getUri());
-                Files.copy(inputStream, targetPath, COPY_ATTRIBUTES);
-            }
-        }
-
-        /**
-         * @param sourceFolder    DocumentFile constructed from ACTION_OPEN_DOCUMENT_TREE Uri
-         * @param targetDir       File path to copy to. This should be one level higher. I.e. Copying
-         *                        /documents/notes
-         *                        /someapp/files/documents.
-         *                        This path should exist
-         * @param contentResolver ContentResolver
-         * @throws IOException Thrown when the target path is invalid (not a directory)
-         */
-
-
-        public static void mirrorDirectory(@NonNull DocumentFile sourceFolder, File targetDir, ContentResolver contentResolver) throws IOException {
-            Log.d(TAG, String.format("mirrorDirectory %s -> %s", sourceFolder.getUri().getPath(), targetDir.getPath()));
-            DocumentFile[] childFiles = sourceFolder.listFiles();
-
-            for (DocumentFile srcChild : childFiles) {
-                if (srcChild.isDirectory()) {
-                    Path targetChildDir = combinePath(targetDir.getPath(), srcChild.getName());
-                    Log.v(TAG, String.format("Child is directory %s", targetChildDir.toString()));
-                    mirrorDirectory(srcChild, targetChildDir.toFile(), contentResolver);
-                } else {
-                    Path targetChild = constructMirroredPath(srcChild, targetDir.toPath());
-                    // image/png, text/markdown
-                    String srcType = srcChild.getType();
-                    Log.v(TAG, String.format("%s is %s", srcChild.getUri().getPath(), srcType));
-                    mirrorFile(srcChild, targetChild, contentResolver);
-
-                }
-            }
-        }
     }
 
-    public void getNoteCategories(@NonNull DocumentFile sourceFolder, @NonNull String targetPathS, @NonNull ContentResolver contentResolver) throws IOException {
-        Log.d(TAG, "getNoteCategories");
-        Path targetPath = FileSystems.getDefault().getPath(targetPathS);
-        File targetFile = targetPath.toFile();
-        if (!targetFile.exists()) {
-            Log.v(TAG, String.format("Creating targetFile: %s", targetFile.getPath()));
-            if (!targetFile.mkdir()) {
-                throw new IOException(String.format("Unable to create directory %s", targetFile.getPath()));
-            }
-        }
+    /**
+     * Application specific - this method will only mirror Categories (directories) and a single image
+     */
+    public void getNoteCategories() throws IOException {
+        Log.d(TAG, "getNoteCategories - Start");
+        ContentResolver contentResolver = mContext.getContentResolver();
+        MindRefFileUtils.ensureDirectoryExists(appStoragePath.toFile());
 
         ListenableFuture<String[]> task = service.submit(
                 () -> {
-                    ArrayList<String> result = GetCategoriesRunner.getCategories(sourceFolder, targetFile, contentResolver);
-                    Log.d(TAG, "GetCategoriesRunner.getCategories - Complete");
+                    ArrayList<String> result = GetCategoriesRunner.getCategories(externalStorageUri, appStoragePath.toFile(), contentResolver);
                     return result.toArray(new String[0]);
                 }
         );
@@ -201,96 +98,100 @@ public class MindRefUtils {
         Futures.addCallback(
                 task,
                 new FutureCallback<String[]>() {
-                    @Override
                     public void onSuccess(String[] result) {
-                        Log.d(TAG, "GetCategoriesRunner.getCategories - OnSuccess");
+                        Log.d(TAG, "getNoteCategories - Finish");
                         if (haveGetCategoriesCallback) {
-                            Log.d(TAG, "GetCategoriesRunner.getCategories - onComplete Callback");
                             getCategoriesCallback.onComplete(result);
                         }
                     }
 
-                    @Override
                     public void onFailure(@NonNull Throwable t) {
-                        Log.w(TAG, "GetCategoriesRunner.getCategories - onFailure");
-                        Log.w(TAG, t.toString());
+                        Log.w(TAG, "getNotCategories - Failure " + t);
                     }
-                }
-                , service);
+                }, service);
     }
-
-
-
-
-
-    public void copyTaskOnSuccessCallback(boolean result) {
-        Log.v(TAG, "copyTask Success");
-        if (this.haveStorageCallback) {
-            Log.d(TAG, "Calling storageCallback");
-            storageCallback.onCopyStorageResult(true);
-        } else {
-            Log.i(TAG, "No callback registered for storageCallback!");
-        }
-    }
-
-    public void copyTaskOnFailure(@NonNull Throwable t) {
-        Log.w(TAG, "copyTask Failure", t);
-
-        if (this.haveStorageCallback) {
-            this.storageCallback.onCopyStorageResult(false);
-        }
-    }
-
-
 
     /**
-     * @param sourceFolder DocumentFile constructed from ACTION_OPEN_DOCUMENT_TREE Uri
-     * @param targetPathS  String path, contents of sourceFolder will be copied to it. Directory will be created if it does not exist.
+     * Mirror External Storage to private App storage to allow working with files natively.
+     * This is a slow operation
      * @throws IOException Thrown when the target path is invalid (not a directory)
      */
 
-    public void copyToAppStorage(@NonNull DocumentFile sourceFolder, @NonNull String targetPathS, @NonNull ContentResolver contentResolver) throws IOException {
-        Log.v(TAG, "copyToAppStorage Invoked");
-        Path targetPath = FileSystems.getDefault().getPath(targetPathS);
-        File targetFile = targetPath.toFile();
+    public void copyToAppStorage() throws IOException {
+        Log.d(TAG, "copyToAppStorage - Start");
+        ContentResolver contentResolver = this.mContext.getContentResolver();
+        File targetFile = this.appStoragePath.toFile();
 
-        // Creating if not exists
-        if (!targetFile.exists()) {
-            Log.v(TAG, String.format("Creating targetFile: %s", targetFile.getPath()));
-            if (!targetFile.mkdir()) {
-                throw new IOException(String.format("Unable to create directory %s", targetFile.getPath()));
-            }
-        }
-
-        Log.d(TAG, String.format("copyToAppStorage %s -> %s", sourceFolder.getUri().getPath(), targetPathS));
+        // Creating the app storage directory if it doesn't exist
+        MindRefFileUtils.ensureDirectoryExists(targetFile);
 
         // Schedule a task
         ListenableFuture<Boolean> task = service.submit(
                 () -> {
-                    CopyTaskRunner.mirrorDirectory(sourceFolder, targetFile, contentResolver);
+                    CopyTaskRunner.mirrorDirectory(this.externalStorageUri, targetFile, contentResolver);
+                    return true;
+                }
+        );
+        // Callbacks
+        Futures.addCallback(
+                task,
+                new FutureCallback<Boolean>() {
+                    public void onSuccess(Boolean result) {
+                        Log.d(TAG, "copyToAppStorage - Finish");
+                        if (haveStorageCallback) {
+                            storageCallback.onCopyStorageResult(true);
+                        }
+                    }
+                    public void onFailure(@NonNull Throwable t) {
+                        if (haveStorageCallback) {
+                            storageCallback.onCopyStorageResult(false);
+                        }
+                    }
+                }
+                , service);
+
+    }
+
+    public void copyToExternalStorage( String sourcePath, String category, String name, String mimeType) throws IOException {
+        Log.d(TAG, "copyToExternalStorage - Start");
+        ContentResolver contentResolver = mContext.getContentResolver();
+
+
+        // Find matching category
+        MindRefFileData categoryChild = MindRefFileData.getChildDirectoryFromUri(this.externalStorageUri, category, contentResolver);
+        if (categoryChild == null) {
+            throw new IOException("category: " + category + " does not exist");
+        }
+
+        ListenableFuture<Boolean> task = service.submit(
+                () -> {
+                    CopyTaskRunner.writeFileToExternal(MindRefFileUtils.stringToPath(sourcePath), name, mimeType, categoryChild, contentResolver);
                     Log.d(TAG, "CopyTaskRunner Complete");
                     return true;
                 }
         );
 
-        // Callbacks
         Futures.addCallback(
                 task,
                 new FutureCallback<Boolean>() {
-
+                    @Override
                     public void onSuccess(Boolean result) {
-                        Log.d(TAG, "CopyTaskRunner - onSuccess");
-                        copyTaskOnSuccessCallback(true);
+                        if (haveStorageCallback) {
+                            Log.v(TAG, "CopyTaskRunner.writeFileToExternal - onComplete Callback");
+                            storageCallback.onCopyStorageResult(result);
+                        } else {
+                            Log.i(TAG, "CopyTaskRunner.writeFileToExternal - No callback");
+                        }
                     }
 
                     @Override
                     public void onFailure(@NonNull Throwable t) {
-
-                        copyTaskOnFailure(t);
+                        Log.e(TAG, t.toString());
                     }
-                }
-                , service);
-        Log.v(TAG, "copyToAppStorage - Future Scheduled");
+                },
+                service
+        );
+
     }
 
 
