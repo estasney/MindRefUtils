@@ -25,8 +25,8 @@ public class CopyTaskRunner {
 
     private static final String TAG = "mindrefutils";
 
-    public static void mirrorFile(MindRefFileData srcFile, Path targetPath, ContentResolver contentResolver) throws IOException {
-        File targetFile = targetPath.toFile();
+    public static void mirrorFile(MindRefFileData srcFile, File targetFile, ContentResolver contentResolver) throws IOException {
+        Path targetPath = targetFile.toPath();
         if (targetFile.exists()) {
             long srcMod = srcFile.lastModified;
             long tgtMod = targetFile.lastModified();
