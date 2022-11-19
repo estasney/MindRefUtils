@@ -18,7 +18,7 @@ public class GetCategoriesRunner {
     private static void copyCategoryImage(Uri categoryUri, File targetDir, ContentResolver contentResolver) throws IOException {
         // Query if category has an image - if so copy to target
 
-        MindRefFileData childImage = MindRefFileData.getFirstChildImageForUri(categoryUri, contentResolver);
+        MindRefFileData childImage = MindRefFileData.getFirstChildImageFromUri(categoryUri, contentResolver);
 
         // Build the URI for The Child Image
         if (childImage == null) {

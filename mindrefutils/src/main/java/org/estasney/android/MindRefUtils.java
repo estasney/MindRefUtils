@@ -113,6 +113,9 @@ public class MindRefUtils {
 
     /**
      * Mirror External Storage to private App storage to allow working with files natively.
+     * Newer Files in External Storage - Overwrite Older Files in App Storage
+     * Files Present in External Storage - Write to App Storage
+     * Files Present in App Storage, but not External Storage - Remove from App Storage
      * This is a slow operation
      * @throws IOException Thrown when the target path is invalid (not a directory)
      */
@@ -152,6 +155,17 @@ public class MindRefUtils {
 
     }
 
+    /**
+     * Given a file from App Storage, Persist it to External Storage using DocumentProvider
+     * If the file does not exist in External Storage, it will be created.
+     * This function calls CopyTaskRunner in a separate thread
+     * @param sourcePath - Location of the app file
+     * @param category - Category to which it belongs (directory)
+     * @param name - Name of the file, without suffix
+     * @param mimeType - MimeType of sourcefile
+     * @throws IOException - Thrown when the category does not exist
+     */
+
     public void copyToExternalStorage( String sourcePath, String category, String name, String mimeType) throws IOException {
         Log.d(TAG, "copyToExternalStorage - Start");
         ContentResolver contentResolver = mContext.getContentResolver();
@@ -160,13 +174,12 @@ public class MindRefUtils {
         // Find matching category
         MindRefFileData categoryChild = MindRefFileData.getChildDirectoryFromUri(this.externalStorageUri, category, contentResolver);
         if (categoryChild == null) {
-            throw new IOException("category: " + category + " does not exist");
+            throw new IOException("Category: " + category + " does not exist");
         }
 
         ListenableFuture<Boolean> task = service.submit(
                 () -> {
                     CopyTaskRunner.writeFileToExternal(MindRefFileUtils.stringToPath(sourcePath), name, mimeType, categoryChild, contentResolver);
-                    Log.d(TAG, "CopyTaskRunner Complete");
                     return true;
                 }
         );
@@ -176,11 +189,11 @@ public class MindRefUtils {
                 new FutureCallback<Boolean>() {
                     @Override
                     public void onSuccess(Boolean result) {
+                        Log.v(TAG, "copyToExternalStorage - Finish");
                         if (haveStorageCallback) {
-                            Log.v(TAG, "CopyTaskRunner.writeFileToExternal - onComplete Callback");
                             storageCallback.onCopyStorageResult(result);
                         } else {
-                            Log.i(TAG, "CopyTaskRunner.writeFileToExternal - No callback");
+                            Log.i(TAG, "copyToExternalStorage - No Callback Registered");
                         }
                     }
 

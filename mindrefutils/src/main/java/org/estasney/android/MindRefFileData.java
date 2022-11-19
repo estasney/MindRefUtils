@@ -8,6 +8,7 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 
+import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.Objects;
 
@@ -263,13 +264,15 @@ public class MindRefFileData {
         return matchedFile;
     }
 
+
+
     /**
      * Use ContentResolver to query for the first child that matches image mime type
      * @param contentResolver - ContentResolver
      * @return - MindRefFileData, null if not found
      */
     @Nullable
-    public static MindRefFileData getFirstChildImageForUri(Uri parentUri, ContentResolver contentResolver) {
+    public static MindRefFileData getFirstChildImageFromUri(Uri parentUri, ContentResolver contentResolver) {
         final Uri childrenUri = MindRefFileData.getChildrenUriFromUri(parentUri);
         String[] projection = {DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME,
                 DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.COLUMN_LAST_MODIFIED};
@@ -295,6 +298,53 @@ public class MindRefFileData {
         }
         return matchedFile;
     }
+
+    /**
+     * Use ContentResolver to query for the first child that matches document name and mime type
+     * @param contentResolver - ContentResolver
+     * @param childName - DocumentName of Child
+     * @param childMime - Mime Type of Child
+     * @return - MindRefFileData, null if not found
+     */
+
+    public MindRefFileData getOrMakeChild(ContentResolver contentResolver, String childName, String childMime) throws FileNotFoundException {
+        if (!this.isDirectory) {
+            throw new IllegalArgumentException(this.displayName + " is not a directory");
+        }
+        final Uri childrenUri = this.getChildrenUri();
+        String[] projection = {DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.COLUMN_LAST_MODIFIED};
+        MindRefFileData matchedFile = null;
+        try (Cursor cursor = contentResolver.query(childrenUri,
+                projection,
+                null, null, null
+        )) {
+            if (cursor != null) {
+                while (cursor.moveToNext() && matchedFile == null) {
+                    String childName1 = cursor.getString(1);
+                    if (!Objects.equals(childName1, childName)) {
+                        continue;
+                    }
+                    String childMime1 = cursor.getString(2);
+                    if (!Objects.equals(childMime1, childMime)) {
+                        continue;
+                    }
+                    String childId = cursor.getString(0);
+                    long childLastMod = cursor.getLong(3);
+                    matchedFile = new MindRefFileData(this.uri, childId, childName1, childMime1, childLastMod);
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed getChildren: " + e);
+        }
+        if (matchedFile != null) {
+            return matchedFile;
+        }
+        Uri childTargetUri = DocumentsContract.createDocument(contentResolver, this.uri, childMime, childName);
+        matchedFile = new MindRefFileData(this.uri, DocumentsContract.getDocumentId(childTargetUri), childName, childMime, 0);
+        return matchedFile;
+    }
+
 
     /**
      * Use ContentResolver to query for children from a Uri, statically
