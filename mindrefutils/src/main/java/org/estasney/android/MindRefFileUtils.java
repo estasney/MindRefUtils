@@ -45,4 +45,16 @@ public class MindRefFileUtils {
         return FileSystems.getDefault().getPath(path);
     }
 
+    /**
+     * Returns the name (without extension) of a file
+     * @param fileName string filename
+     * @return String, fileName without extension
+     */
+    public static String stripFileExt(String fileName) {
+        if (!fileName.contains(".")) {
+            return fileName;
+        }
+        return fileName.split("\\.")[0];
+    }
+
 }

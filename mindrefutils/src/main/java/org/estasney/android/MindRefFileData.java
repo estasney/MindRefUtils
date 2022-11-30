@@ -321,7 +321,9 @@ public class MindRefFileData {
         )) {
             if (cursor != null) {
                 while (cursor.moveToNext() && matchedFile == null) {
+                    // childName may have an extension
                     String childName1 = cursor.getString(1);
+                    childName1 = MindRefFileUtils.stripFileExt(childName1);
                     if (!Objects.equals(childName1, childName)) {
                         continue;
                     }
@@ -335,13 +337,15 @@ public class MindRefFileData {
                 }
             }
         } catch (Exception e) {
-            Log.w(TAG, "Failed getChildren: " + e);
+            Log.w(TAG, "Failed getOrMakeChild: " + e);
         }
         if (matchedFile != null) {
+            Log.d(TAG, "getOrMakeChild: found match");
             return matchedFile;
         }
         Uri childTargetUri = DocumentsContract.createDocument(contentResolver, this.uri, childMime, childName);
         matchedFile = new MindRefFileData(this.uri, DocumentsContract.getDocumentId(childTargetUri), childName, childMime, 0);
+        Log.d(TAG, "getOrMakeChild: Match Not Found, Created New Document : " + childTargetUri);
         return matchedFile;
     }
 
