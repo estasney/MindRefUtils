@@ -8,6 +8,8 @@ import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
+import org.apache.commons.io.FileUtils;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -17,7 +19,7 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.stream.Stream;
 
-public class CopyTaskRunner {
+public class MindRefRunner {
 
     private static final String TAG = "mindrefutils";
 
@@ -52,14 +54,14 @@ public class CopyTaskRunner {
         MindRefFileData[] fileData = MindRefFileData.getChildrenFromUri(sourceFolderUri, contentResolver);
         // Gather targetDir Children - if not present in sourceFolder, they are deleted
         ArrayDeque<Path> targetDirPathDeque = new ArrayDeque<>();
-        Stream<Path> targetDirFiles = Files.list(targetDir.toPath()).filter(t -> t.toFile().isFile());
+        Stream<Path> targetDirFiles = Files.list(targetDir.toPath());
         targetDirFiles.forEach(targetDirPathDeque::add);
-
 
         for (MindRefFileData srcChild : fileData) {
             if (srcChild.isDirectory) {
                 Path targetChildDir = combinePath(targetDir.getPath(), srcChild.displayName);
                 mirrorDirectory(srcChild.uri, targetChildDir.toFile(), contentResolver);
+                targetDirPathDeque.remove(targetChildDir);
             } else {
                 Path targetChild = combinePath(targetDir.toString(), srcChild.displayName);
                 mirrorFile(srcChild, targetChild.toFile(), contentResolver);
@@ -70,10 +72,17 @@ public class CopyTaskRunner {
         // Remove any children
         while (!targetDirPathDeque.isEmpty()) {
             Path hangingChildPath = targetDirPathDeque.pop();
-            Log.d(TAG, "Removing: " + hangingChildPath);
-            Files.delete(hangingChildPath);
-        }
 
+            File hangingChildFile = hangingChildPath.toFile();
+            if (hangingChildFile.isDirectory()) {
+                Log.d(TAG, "Removing Dir: " + hangingChildPath);
+                FileUtils.deleteDirectory(hangingChildFile);
+            } else {
+                Log.d(TAG, "Removing File: " + hangingChildPath);
+                Files.delete(hangingChildPath);
+            }
+
+        }
 
     }
 
@@ -83,7 +92,7 @@ public class CopyTaskRunner {
      * @param sourcePath - Location of the app file
      * @param name - Name of the file, without suffix
      * @param mimeType - MimeType of sourcefile
-    * @param externalDir - Category folder to save in External Storage
+     * @param externalDir - Category folder to save in External Storage
      * @throws IOException - Thrown when the category does not exist
      */
 
@@ -101,5 +110,66 @@ public class CopyTaskRunner {
         fileOutputStream.write(srcData);
         fileOutputStream.close();
         pfd.close();
+    }
+
+
+    /**
+     * Given a Uri from External Storage (not within our mirrored directory), copy it to External Storage within our mirrored directory
+     * @param sourceUri - Uri of the file to copy
+     *                  We will be able to get the name and mimeType from this
+     * @param targetName - Name to assign to the the target file
+     * @param externalDir - Category folder in which to save the file
+     * @param contentResolver - ContentResolver
+     * @return - Uri of the resolved destination of the file
+     */
+    public static Uri copyExternalFileToExternalDirectory(Uri sourceUri, String targetName, MindRefFileData externalDir, ContentResolver contentResolver) throws IOException {
+
+        // Get the source file mime type
+        String mimeType = contentResolver.getType(sourceUri);
+
+        // Get the target file URI
+        MindRefFileData externalTarget = externalDir.getOrMakeChild(contentResolver, targetName, mimeType);
+
+        // Copy operation is not permitted by the provider, so we have to do it manually
+        // Read the source file, we have to go through the ContentResolver since these are content:// uris
+        InputStream inputStream = contentResolver.openInputStream(sourceUri);
+
+        // Now we have URI, open file descriptor and copy
+        ParcelFileDescriptor pfd = contentResolver.openFileDescriptor(externalTarget.uri, "w");
+        FileOutputStream fileOutputStream = new FileOutputStream(pfd.getFileDescriptor());
+
+        // Now we have the streams, copy the data over
+        // This could be potentially large files, so we use a buffer
+        byte[] buffer = new byte[1024];
+        int length;
+        while ((length = inputStream.read(buffer)) > 0) {
+            fileOutputStream.write(buffer, 0, length);
+        }
+
+        // Close the streams
+        inputStream.close();
+        fileOutputStream.close();
+        pfd.close();
+
+        return externalTarget.uri;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
 }

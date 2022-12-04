@@ -3,6 +3,7 @@ package org.estasney.android;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.net.Uri;
+import android.provider.DocumentsContract;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -14,6 +15,7 @@ import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
@@ -30,6 +32,8 @@ public class MindRefUtils {
     private final Path appStoragePath;
     public final String externalStorageRoot;
     public final String appStorageRoot;
+    private MindRefUtilsCallback mindRefUtilsCallback;
+    public boolean haveMindRefUtilsCallback = false;
 
     /**
      * Constructor for MindRefUtils
@@ -47,68 +51,101 @@ public class MindRefUtils {
     }
 
     /**
-     * Get Categories
+     * Generic Callback
      */
-    public interface GetCategoriesCallback {
-        void onComplete(String[] categories);
-    }
-
-    private GetCategoriesCallback getCategoriesCallback;
-    private boolean haveGetCategoriesCallback = false;
-
-    public void setGetCategoriesCallback(GetCategoriesCallback callback) {
-        this.getCategoriesCallback = callback;
-        this.haveGetCategoriesCallback = true;
-    }
-
-    // Copy Storage
-    public interface CopyStorageCallback {
-        // Called when copy storage is complete
-
-        void onCopyStorageResult(boolean result);
-
-        // Called each time a directory is finished copying (note discovery)
-        void onNoteDiscoveryResult(String category, String imagePath, String[] notes);
+    public interface MindRefUtilsCallback {
+        // Create Category
+        void onComplete(int key, String category);
+        // Get Categories
+        void onComplete(int key, String[] category);
+        // Copy Storage
+        void onComplete(int key);
+        void onFailure(int key);
 
     }
-
-    private CopyStorageCallback storageCallback;
-    private boolean haveStorageCallback = false;
-
-    public void setStorageCallback(CopyStorageCallback callback) {
-        this.storageCallback = callback;
-        this.haveStorageCallback = true;
+    public void setMindRefCallback(MindRefUtilsCallback callback) {
+        this.mindRefUtilsCallback = callback;
+        this.haveMindRefUtilsCallback = true;
     }
+
+
 
     /**
      * Application specific - this method will only mirror Categories (directories) and a single image
      */
-    public void getNoteCategories() throws IOException {
-        Log.d(TAG, "getNoteCategories - Start");
+    public void getNoteCategories(int key) throws IOException {
+        Log.d(TAG, "getNoteCategories - Start : " + key);
         ContentResolver contentResolver = mContext.getContentResolver();
         MindRefFileUtils.ensureDirectoryExists(appStoragePath.toFile());
 
-        ListenableFuture<String[]> task = service.submit(
+        ListenableFuture<MindRefContainers.TupleTwo<Integer, String[]>> task = service.submit(
                 () -> {
-                    ArrayList<String> result = GetCategoriesRunner.getCategories(externalStorageUri, appStoragePath.toFile(), contentResolver);
-                    return result.toArray(new String[0]);
+                    ArrayList<String> result = MindRefCategoryRunner.getCategories(externalStorageUri, appStoragePath.toFile(), contentResolver);
+                    return new MindRefContainers.TupleTwo<>(key, result.toArray(new String[0]));
                 }
         );
 
         Futures.addCallback(
                 task,
-                new FutureCallback<String[]>() {
-                    public void onSuccess(String[] result) {
+                new FutureCallback<MindRefContainers.TupleTwo<Integer, String[]>>() {
+                    public void onSuccess(MindRefContainers.TupleTwo result) {
                         Log.d(TAG, "getNoteCategories - Finish");
-                        if (haveGetCategoriesCallback) {
-                            getCategoriesCallback.onComplete(result);
+                        if (haveMindRefUtilsCallback) {
+                            int key = (int) result.getX();
+                            String[] y = (String[]) result.getY();
+                            mindRefUtilsCallback.onComplete(key, y);
+                        } else {
+                            Log.i(TAG, "getNoteCategories - No callback found");
                         }
                     }
 
                     public void onFailure(@NonNull Throwable t) {
                         Log.w(TAG, "getNotCategories - Failure " + t);
+                        if (haveMindRefUtilsCallback) {
+                            mindRefUtilsCallback.onFailure(key);
+                        }
                     }
                 }, service);
+    }
+
+    /**
+     * Given a single URI, this method will directly copy the user provided file URI to the managed storage
+     * This method is intended to be used for copying a single image file.
+     * @param key - Arbitrary key to be returned in callback
+     * @param sourceUri - URI of the file to be copied
+     * @param directoryName - Name of the directory to copy the file to
+     */
+
+    public void copyToManagedExternal(int key, Uri sourceUri, String directoryName) throws FileNotFoundException {
+        Log.d(TAG, "copyToManagedExternal - Start");
+        ContentResolver contentResolver = mContext.getContentResolver();
+        MindRefFileData srcRoot = MindRefFileData.fromTreeUri(this.externalStorageUri);
+        MindRefFileData srcFolder = srcRoot.getOrMakeChild(contentResolver, directoryName, DocumentsContract.Document.MIME_TYPE_DIR);
+
+        // Create a new task to copy the file
+        ListenableFuture<Uri> task  = service.submit(
+                () -> MindRefRunner.copyExternalFileToExternalDirectory(sourceUri, directoryName, srcFolder, contentResolver)
+        );
+        Futures.addCallback(
+                task,
+                new FutureCallback<Uri>() {
+                    public void onSuccess(Uri result) {
+                        Log.d(TAG, "copyToManagedExternal - Finish");
+                        if (haveMindRefUtilsCallback) {
+                            mindRefUtilsCallback.onComplete(key);
+                        } else {
+                            Log.i(TAG, "copyToManagedExternal - No callback found");
+                        }
+                    }
+
+                    public void onFailure(@NonNull Throwable t) {
+                        Log.w(TAG, "copyToManagedExternal - Failure " + t);
+                        if (haveMindRefUtilsCallback) {
+                            mindRefUtilsCallback.onFailure(key);
+                        }
+                    }
+                }, service);
+
     }
 
     /**
@@ -117,10 +154,10 @@ public class MindRefUtils {
      * Files Present in External Storage - Write to App Storage
      * Files Present in App Storage, but not External Storage - Remove from App Storage
      * This is a slow operation
+     * @param key - Arbitrary int, will be passed to callback
      * @throws IOException Thrown when the target path is invalid (not a directory)
      */
-
-    public void copyToAppStorage() throws IOException {
+    public void copyToAppStorage(int key) throws IOException {
         Log.d(TAG, "copyToAppStorage - Start");
         ContentResolver contentResolver = this.mContext.getContentResolver();
         File targetFile = this.appStoragePath.toFile();
@@ -131,7 +168,7 @@ public class MindRefUtils {
         // Schedule a task
         ListenableFuture<Boolean> task = service.submit(
                 () -> {
-                    CopyTaskRunner.mirrorDirectory(this.externalStorageUri, targetFile, contentResolver);
+                    MindRefRunner.mirrorDirectory(this.externalStorageUri, targetFile, contentResolver);
                     return true;
                 }
         );
@@ -139,21 +176,23 @@ public class MindRefUtils {
         Futures.addCallback(
                 task,
                 new FutureCallback<Boolean>() {
-                    public void onSuccess(Boolean result) {
+                    public void onSuccess(Boolean flag) {
                         Log.d(TAG, "copyToAppStorage - Finish");
-                        if (haveStorageCallback) {
-                            storageCallback.onCopyStorageResult(true);
+                        if (haveMindRefUtilsCallback) {
+                            mindRefUtilsCallback.onComplete(key);
                         }
                     }
                     public void onFailure(@NonNull Throwable t) {
-                        if (haveStorageCallback) {
-                            storageCallback.onCopyStorageResult(false);
+                        if (haveMindRefUtilsCallback) {
+                            mindRefUtilsCallback.onFailure(key);
                         }
                     }
                 }
                 , service);
 
     }
+
+
 
     /**
      * Given a file from App Storage, Persist it to External Storage using DocumentProvider
@@ -166,8 +205,8 @@ public class MindRefUtils {
      * @throws IOException - Thrown when the category does not exist
      */
 
-    public void copyToExternalStorage( String sourcePath, String category, String name, String mimeType) throws IOException {
-        Log.d(TAG, "copyToExternalStorage - Start");
+    public void copyToExternalStorage( int key, String sourcePath, String category, String name, String mimeType) throws IOException {
+        Log.d(TAG, "copyToExternalStorage - Start " + sourcePath + ", " + category + ", " + name + ", " + mimeType);
         ContentResolver contentResolver = mContext.getContentResolver();
 
 
@@ -179,7 +218,7 @@ public class MindRefUtils {
 
         ListenableFuture<Boolean> task = service.submit(
                 () -> {
-                    CopyTaskRunner.writeFileToExternal(MindRefFileUtils.stringToPath(sourcePath), name, mimeType, categoryChild, contentResolver);
+                    MindRefRunner.writeFileToExternal(MindRefFileUtils.stringToPath(sourcePath), name, mimeType, categoryChild, contentResolver);
                     return true;
                 }
         );
@@ -190,8 +229,8 @@ public class MindRefUtils {
                     @Override
                     public void onSuccess(Boolean result) {
                         Log.v(TAG, "copyToExternalStorage - Finish");
-                        if (haveStorageCallback) {
-                            storageCallback.onCopyStorageResult(result);
+                        if (haveMindRefUtilsCallback) {
+                            mindRefUtilsCallback.onComplete(key);
                         } else {
                             Log.i(TAG, "copyToExternalStorage - No Callback Registered");
                         }
@@ -200,6 +239,62 @@ public class MindRefUtils {
                     @Override
                     public void onFailure(@NonNull Throwable t) {
                         Log.e(TAG, t.toString());
+                        if (haveMindRefUtilsCallback) {
+                            mindRefUtilsCallback.onFailure(key);
+                        }
+                    }
+                },
+                service
+        );
+
+    }
+
+
+
+    /**
+     * Given a Category (Directory), Create it in External Storage
+     * This function calls MindRefCategoryRunner in a separate thread
+     * Result is passed to CategoryActionCallback
+     * @param category - Category to which it belongs (directory)
+     */
+
+    public void createCategory( int key, String category) {
+        Log.d(TAG, "createCategory - start");
+        ContentResolver contentResolver = mContext.getContentResolver();
+
+        ListenableFuture<Boolean> task = service.submit(
+                () -> {
+                    try {
+                        MindRefCategoryRunner.createCategory(this.externalStorageUri, category, contentResolver);
+                    } catch (IOException e) {
+                        Log.w(TAG, "createCategory - failed", e);
+                        return false;
+                    }
+                    return true;
+                }
+        );
+
+        Futures.addCallback(
+                task,
+                new FutureCallback<Boolean>() {
+                    @Override
+                    public void onSuccess(Boolean result) {
+                        Log.d(TAG, "createCategory - Finish");
+                        if (haveMindRefUtilsCallback) {
+                            mindRefUtilsCallback.onComplete(key, category);
+                        } else {
+                            Log.i(TAG, "copyToExternalStorage - No Callback Registered");
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull Throwable t) {
+                        Log.e(TAG, t.toString());
+                        if (haveMindRefUtilsCallback) {
+                            mindRefUtilsCallback.onFailure(key);
+                        } else {
+                            Log.i(TAG, "copyToExternalStorage - No Callback Registered");
+                        }
                     }
                 },
                 service

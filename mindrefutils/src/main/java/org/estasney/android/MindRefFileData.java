@@ -1,6 +1,7 @@
 package org.estasney.android;
 
 import android.content.ContentResolver;
+import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.DocumentsContract;
@@ -28,6 +29,11 @@ public class MindRefFileData {
         this.mimeType = mimeType;
         this.isDirectory = Objects.equals(this.mimeType, DocumentsContract.Document.MIME_TYPE_DIR);
         this.lastModified = lastModified;
+    }
+
+    public static MindRefFileData fromTreeUri(Uri treeUri) {
+        String docId = DocumentsContract.getTreeDocumentId(treeUri);
+        return new MindRefFileData(treeUri, docId, docId, DocumentsContract.Document.MIME_TYPE_DIR, 0L);
     }
 
     /**

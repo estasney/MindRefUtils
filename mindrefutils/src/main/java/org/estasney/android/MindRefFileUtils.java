@@ -37,8 +37,14 @@ public class MindRefFileUtils {
         }
     }
 
-    public static Path combinePath(String p1, String p2) {
-        return FileSystems.getDefault().getPath(p1, p2);
+    /**
+     * Combine parts of a path
+     * @param head - String
+     * @param pieces - One or more additional parts to join
+     * @return String Path
+     */
+    public static Path combinePath(String head, String... pieces) {
+        return FileSystems.getDefault().getPath(head, pieces);
     }
 
     public static Path stringToPath(String path) {
