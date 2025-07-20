@@ -54,56 +54,13 @@ public class MindRefUtils {
      * Generic Callback
      */
     public interface MindRefUtilsCallback {
-        // Copy Storage
+
         void onComplete(int key);
         void onFailure(int key);
-
     }
     public void setMindRefCallback(MindRefUtilsCallback callback) {
         this.mindRefUtilsCallback = callback;
         this.haveMindRefUtilsCallback = true;
-    }
-
-
-
-
-    /**
-     * Given a single URI, this method will directly copy the user provided file URI to the managed storage
-     * @param key - Arbitrary key to be returned in callback
-     * @param sourceUri - URI of the file to be copied
-     * @param directoryName - Name of the directory to copy the file to
-     */
-
-    public void copyToManagedExternal(int key, Uri sourceUri, String directoryName) throws FileNotFoundException {
-        Log.d(TAG, "copyToManagedExternal - Start");
-        ContentResolver contentResolver = mContext.getContentResolver();
-        MindRefFileData srcRoot = MindRefFileData.fromTreeUri(this.externalStorageUri);
-        MindRefFileData srcFolder = srcRoot.getOrMakeChild(contentResolver, directoryName, DocumentsContract.Document.MIME_TYPE_DIR);
-
-        // Create a new task to copy the file
-        ListenableFuture<Uri> task  = service.submit(
-                () -> MindRefRunner.copyExternalFileToExternalDirectory(sourceUri, directoryName, srcFolder, contentResolver)
-        );
-        Futures.addCallback(
-                task,
-                new FutureCallback<Uri>() {
-                    public void onSuccess(Uri result) {
-                        Log.d(TAG, "copyToManagedExternal - Finish");
-                        if (haveMindRefUtilsCallback) {
-                            mindRefUtilsCallback.onComplete(key);
-                        } else {
-                            Log.i(TAG, "copyToManagedExternal - No callback found");
-                        }
-                    }
-
-                    public void onFailure(@NonNull Throwable t) {
-                        Log.w(TAG, "copyToManagedExternal - Failure " + t);
-                        if (haveMindRefUtilsCallback) {
-                            mindRefUtilsCallback.onFailure(key);
-                        }
-                    }
-                }, service);
-
     }
 
     /**
@@ -152,23 +109,11 @@ public class MindRefUtils {
 
 
 
-    /**
-     * Creates a directory in external storage
-     * @param directory - Name of the directory to create
-     * @param contentResolver - ContentResolver
-     * @return MindRefFileData object representing the created directory
-     * @throws IOException - Thrown when the directory cannot be created
-     */
-    private MindRefFileData createDirectory(String directory, ContentResolver contentResolver) throws IOException {
-        Log.d(TAG, "createDirectory - Start " + directory);
-        MindRefFileData sourceFolder = MindRefFileData.fromTreeUri(this.externalStorageUri);
-        return sourceFolder.getOrMakeChild(contentResolver, directory, DocumentsContract.Document.MIME_TYPE_DIR);
-    }
+
 
     /**
      * Given a file from App Storage, Persist it to External Storage using DocumentProvider
      * If the file does not exist in External Storage, it will be created.
-     * This function calls CopyTaskRunner in a separate thread
      * @param sourcePath - Location of the app file
      * @param directory - Directory to which it belongs
      * @param name - Name of the file, without suffix
@@ -223,6 +168,19 @@ public class MindRefUtils {
                 service
         );
 
+    }
+
+    /**
+     * Creates a directory in external storage
+     * @param directory - Name of the directory to create
+     * @param contentResolver - ContentResolver
+     * @return MindRefFileData object representing the created directory
+     * @throws IOException - Thrown when the directory cannot be created
+     */
+    private MindRefFileData createDirectory(String directory, ContentResolver contentResolver) throws IOException {
+        Log.d(TAG, "createDirectory - Start " + directory);
+        MindRefFileData sourceFolder = MindRefFileData.fromTreeUri(this.externalStorageUri);
+        return sourceFolder.getOrMakeChild(contentResolver, directory, DocumentsContract.Document.MIME_TYPE_DIR);
     }
 
 
