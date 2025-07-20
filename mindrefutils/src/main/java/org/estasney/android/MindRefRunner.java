@@ -6,6 +6,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import android.content.ContentResolver;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
+import android.provider.DocumentsContract;
 import android.util.Log;
 
 import org.apache.commons.io.FileUtils;
@@ -17,6 +18,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.stream.Stream;
 
 public class MindRefRunner {
@@ -92,13 +94,13 @@ public class MindRefRunner {
      * @param sourcePath - Location of the app file
      * @param name - Name of the file, without suffix
      * @param mimeType - MimeType of sourcefile
-     * @param externalDir - Category folder to save in External Storage
-     * @throws IOException - Thrown when the category does not exist
+     * @param externalDir - Directory folder to save in External Storage
+     * @throws IOException - Thrown when the directory does not exist
      */
 
     public static void writeFileToExternal(Path sourcePath, String name, String mimeType, MindRefFileData externalDir,
                                            ContentResolver contentResolver) throws IOException {
-        // We need a URI for a category so we query the root
+        // We need a URI for a directory so we query the root
         MindRefFileData externalTarget = externalDir.getOrMakeChild(contentResolver, name, mimeType);
 
         // Read source document
@@ -118,7 +120,7 @@ public class MindRefRunner {
      * @param sourceUri - Uri of the file to copy
      *                  We will be able to get the name and mimeType from this
      * @param targetName - Name to assign to the the target file
-     * @param externalDir - Category folder in which to save the file
+     * @param externalDir - Directory folder in which to save the file
      * @param contentResolver - ContentResolver
      * @return - Uri of the resolved destination of the file
      */
@@ -172,4 +174,5 @@ public class MindRefRunner {
 
 
     }
+
 }

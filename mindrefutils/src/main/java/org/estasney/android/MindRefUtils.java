@@ -54,10 +54,6 @@ public class MindRefUtils {
      * Generic Callback
      */
     public interface MindRefUtilsCallback {
-        // Create Category
-        void onComplete(int key, String category);
-        // Get Categories
-        void onComplete(int key, String[] category);
         // Copy Storage
         void onComplete(int key);
         void onFailure(int key);
@@ -70,47 +66,9 @@ public class MindRefUtils {
 
 
 
-    /**
-     * Application specific - this method will only mirror Categories (directories) and a single image
-     */
-    public void getNoteCategories(int key) throws IOException {
-        Log.d(TAG, "getNoteCategories - Start : " + key);
-        ContentResolver contentResolver = mContext.getContentResolver();
-        MindRefFileUtils.ensureDirectoryExists(appStoragePath.toFile());
-
-        ListenableFuture<MindRefContainers.TupleTwo<Integer, String[]>> task = service.submit(
-                () -> {
-                    ArrayList<String> result = MindRefCategoryRunner.getCategories(externalStorageUri, appStoragePath.toFile(), contentResolver);
-                    return new MindRefContainers.TupleTwo<>(key, result.toArray(new String[0]));
-                }
-        );
-
-        Futures.addCallback(
-                task,
-                new FutureCallback<MindRefContainers.TupleTwo<Integer, String[]>>() {
-                    public void onSuccess(MindRefContainers.TupleTwo result) {
-                        Log.d(TAG, "getNoteCategories - Finish");
-                        if (haveMindRefUtilsCallback) {
-                            int key = (int) result.getX();
-                            String[] y = (String[]) result.getY();
-                            mindRefUtilsCallback.onComplete(key, y);
-                        } else {
-                            Log.i(TAG, "getNoteCategories - No callback found");
-                        }
-                    }
-
-                    public void onFailure(@NonNull Throwable t) {
-                        Log.w(TAG, "getNotCategories - Failure " + t);
-                        if (haveMindRefUtilsCallback) {
-                            mindRefUtilsCallback.onFailure(key);
-                        }
-                    }
-                }, service);
-    }
 
     /**
      * Given a single URI, this method will directly copy the user provided file URI to the managed storage
-     * This method is intended to be used for copying a single image file.
      * @param key - Arbitrary key to be returned in callback
      * @param sourceUri - URI of the file to be copied
      * @param directoryName - Name of the directory to copy the file to
@@ -195,30 +153,48 @@ public class MindRefUtils {
 
 
     /**
+     * Creates a directory in external storage
+     * @param directory - Name of the directory to create
+     * @param contentResolver - ContentResolver
+     * @return MindRefFileData object representing the created directory
+     * @throws IOException - Thrown when the directory cannot be created
+     */
+    private MindRefFileData createDirectory(String directory, ContentResolver contentResolver) throws IOException {
+        Log.d(TAG, "createDirectory - Start " + directory);
+        MindRefFileData sourceFolder = MindRefFileData.fromTreeUri(this.externalStorageUri);
+        return sourceFolder.getOrMakeChild(contentResolver, directory, DocumentsContract.Document.MIME_TYPE_DIR);
+    }
+
+    /**
      * Given a file from App Storage, Persist it to External Storage using DocumentProvider
      * If the file does not exist in External Storage, it will be created.
      * This function calls CopyTaskRunner in a separate thread
      * @param sourcePath - Location of the app file
-     * @param category - Category to which it belongs (directory)
+     * @param directory - Directory to which it belongs
      * @param name - Name of the file, without suffix
      * @param mimeType - MimeType of sourcefile
-     * @throws IOException - Thrown when the category does not exist
+     * @throws IOException - Thrown when the directory cannot be created
      */
 
-    public void copyToExternalStorage( int key, String sourcePath, String category, String name, String mimeType) throws IOException {
-        Log.d(TAG, "copyToExternalStorage - Start " + sourcePath + ", " + category + ", " + name + ", " + mimeType);
+    public void copyToExternalStorage( int key, String sourcePath, String directory, String name, String mimeType) throws IOException {
+        Log.d(TAG, "copyToExternalStorage - Start " + sourcePath + ", " + directory + ", " + name + ", " + mimeType);
         ContentResolver contentResolver = mContext.getContentResolver();
 
 
-        // Find matching category
-        MindRefFileData categoryChild = MindRefFileData.getChildDirectoryFromUri(this.externalStorageUri, category, contentResolver);
-        if (categoryChild == null) {
-            throw new IOException("Category: " + category + " does not exist");
+        // Find matching directory or create it if it doesn't exist
+        MindRefFileData directoryData = MindRefFileData.getChildDirectoryFromUri(this.externalStorageUri, directory, contentResolver);
+        if (directoryData == null) {
+            // Create the directory if it doesn't exist
+            Log.d(TAG, "Directory does not exist, creating: " + directory);
+            directoryData = createDirectory(directory, contentResolver);
         }
+
+        // Use final variable for lambda
+        final MindRefFileData directoryChild = directoryData;
 
         ListenableFuture<Boolean> task = service.submit(
                 () -> {
-                    MindRefRunner.writeFileToExternal(MindRefFileUtils.stringToPath(sourcePath), name, mimeType, categoryChild, contentResolver);
+                    MindRefRunner.writeFileToExternal(MindRefFileUtils.stringToPath(sourcePath), name, mimeType, directoryChild, contentResolver);
                     return true;
                 }
         );
@@ -251,56 +227,6 @@ public class MindRefUtils {
 
 
 
-    /**
-     * Given a Category (Directory), Create it in External Storage
-     * This function calls MindRefCategoryRunner in a separate thread
-     * Result is passed to CategoryActionCallback
-     * @param category - Category to which it belongs (directory)
-     */
-
-    public void createCategory( int key, String category) {
-        Log.d(TAG, "createCategory - start");
-        ContentResolver contentResolver = mContext.getContentResolver();
-
-        ListenableFuture<Boolean> task = service.submit(
-                () -> {
-                    try {
-                        MindRefCategoryRunner.createCategory(this.externalStorageUri, category, contentResolver);
-                    } catch (IOException e) {
-                        Log.w(TAG, "createCategory - failed", e);
-                        return false;
-                    }
-                    return true;
-                }
-        );
-
-        Futures.addCallback(
-                task,
-                new FutureCallback<Boolean>() {
-                    @Override
-                    public void onSuccess(Boolean result) {
-                        Log.d(TAG, "createCategory - Finish");
-                        if (haveMindRefUtilsCallback) {
-                            mindRefUtilsCallback.onComplete(key, category);
-                        } else {
-                            Log.i(TAG, "copyToExternalStorage - No Callback Registered");
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(@NonNull Throwable t) {
-                        Log.e(TAG, t.toString());
-                        if (haveMindRefUtilsCallback) {
-                            mindRefUtilsCallback.onFailure(key);
-                        } else {
-                            Log.i(TAG, "copyToExternalStorage - No Callback Registered");
-                        }
-                    }
-                },
-                service
-        );
-
-    }
 
 
 }
