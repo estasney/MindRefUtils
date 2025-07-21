@@ -48,20 +48,15 @@ public class MindRefRunner {
     public static void mirrorDirectory(Uri sourceFolderUri, File targetDir, ContentResolver contentResolver) throws IOException {
 
         MindRefFileData[] fileData = MindRefFileData.getChildrenFromUri(sourceFolderUri, contentResolver);
-        // Gather targetDir Children - if not present in sourceFolder, they are deleted
-        ArrayDeque<Path> targetDirPathDeque = new ArrayDeque<>();
-        Stream<Path> targetDirFiles = Files.list(targetDir.toPath());
-        targetDirFiles.forEach(targetDirPathDeque::add);
+
 
         for (MindRefFileData srcChild : fileData) {
             if (srcChild.isDirectory) {
                 Path targetChildDir = combinePath(targetDir.getPath(), srcChild.displayName);
                 mirrorDirectory(srcChild.uri, targetChildDir.toFile(), contentResolver);
-                targetDirPathDeque.remove(targetChildDir);
             } else {
                 Path targetChild = combinePath(targetDir.toString(), srcChild.displayName);
                 mirrorFile(srcChild, targetChild.toFile(), contentResolver);
-                targetDirPathDeque.remove(targetChild);
             }
         }
     }
