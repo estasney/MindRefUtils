@@ -37,8 +37,9 @@ public class MindRefUtils {
 
     /**
      * Constructor for MindRefUtils
+     *
      * @param externalStorageRoot - String representing the URI returned from user selecting document storage
-     * @param appStorageRoot - String representing the Filepath to a folder that will mirror externalStorageRoot
+     * @param appStorageRoot      - String representing the Filepath to a folder that will mirror externalStorageRoot
      */
     public MindRefUtils(String externalStorageRoot, String appStorageRoot, Context context) {
         Uri externalStorageRootUri = Uri.parse(externalStorageRoot);
@@ -56,8 +57,10 @@ public class MindRefUtils {
     public interface MindRefUtilsCallback {
 
         void onComplete(int key);
+
         void onFailure(int key);
     }
+
     public void setMindRefCallback(MindRefUtilsCallback callback) {
         this.mindRefUtilsCallback = callback;
         this.haveMindRefUtilsCallback = true;
@@ -69,6 +72,7 @@ public class MindRefUtils {
      * Files Present in External Storage - Write to App Storage
      * Files Present in App Storage, but not External Storage - No op
      * This is a slow operation
+     *
      * @param key - Arbitrary int, will be passed to callback
      * @throws IOException Thrown when the target path is invalid (not a directory)
      */
@@ -97,6 +101,7 @@ public class MindRefUtils {
                             mindRefUtilsCallback.onComplete(key);
                         }
                     }
+
                     public void onFailure(@NonNull Throwable t) {
                         if (haveMindRefUtilsCallback) {
                             mindRefUtilsCallback.onFailure(key);
@@ -107,21 +112,18 @@ public class MindRefUtils {
 
     }
 
-
-
-
-
     /**
      * Given a file from App Storage, Persist it to External Storage using DocumentProvider
      * If the file does not exist in External Storage, it will be created.
+     *
      * @param sourcePath - Location of the app file
-     * @param directory - Directory to which it belongs
-     * @param name - Name of the file, without suffix
-     * @param mimeType - MimeType of sourcefile
+     * @param directory  - Directory to which it belongs
+     * @param name       - Name of the file, without suffix
+     * @param mimeType   - MimeType of sourcefile
      * @throws IOException - Thrown when the directory cannot be created
      */
 
-    public void copyToExternalStorage( int key, String sourcePath, String directory, String name, String mimeType) throws IOException {
+    public void copyToExternalStorage(int key, String sourcePath, String directory, String name, String mimeType) throws IOException {
         Log.d(TAG, "copyToExternalStorage - Start " + sourcePath + ", " + directory + ", " + name + ", " + mimeType);
         ContentResolver contentResolver = mContext.getContentResolver();
 
@@ -172,7 +174,8 @@ public class MindRefUtils {
 
     /**
      * Creates a directory in external storage
-     * @param directory - Name of the directory to create
+     *
+     * @param directory       - Name of the directory to create
      * @param contentResolver - ContentResolver
      * @return MindRefFileData object representing the created directory
      * @throws IOException - Thrown when the directory cannot be created
@@ -182,9 +185,6 @@ public class MindRefUtils {
         MindRefFileData sourceFolder = MindRefFileData.fromTreeUri(this.externalStorageUri);
         return sourceFolder.getOrMakeChild(contentResolver, directory, DocumentsContract.Document.MIME_TYPE_DIR);
     }
-
-
-
 
 
 }
