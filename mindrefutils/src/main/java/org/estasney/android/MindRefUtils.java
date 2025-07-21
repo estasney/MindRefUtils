@@ -15,14 +15,13 @@ import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.concurrent.Executors;
 
 
+/** @noinspection unused*/
 public class MindRefUtils {
     private static final String TAG = "mindrefutils";
     private final ListeningExecutorService service;

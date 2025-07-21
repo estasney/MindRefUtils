@@ -6,11 +6,6 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import android.content.ContentResolver;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
-import android.provider.DocumentsContract;
-import android.util.Log;
-
-import org.apache.commons.io.FileUtils;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -18,7 +13,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.stream.Stream;
 
 public class MindRefRunner {
