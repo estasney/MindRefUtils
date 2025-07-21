@@ -70,22 +70,6 @@ public class MindRefRunner {
                 targetDirPathDeque.remove(targetChild);
             }
         }
-
-        // Remove any children
-        while (!targetDirPathDeque.isEmpty()) {
-            Path hangingChildPath = targetDirPathDeque.pop();
-
-            File hangingChildFile = hangingChildPath.toFile();
-            if (hangingChildFile.isDirectory()) {
-                Log.d(TAG, "Removing Dir: " + hangingChildPath);
-                FileUtils.deleteDirectory(hangingChildFile);
-            } else {
-                Log.d(TAG, "Removing File: " + hangingChildPath);
-                Files.delete(hangingChildPath);
-            }
-
-        }
-
     }
 
     /**
