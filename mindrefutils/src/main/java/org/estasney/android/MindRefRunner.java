@@ -6,6 +6,8 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import android.content.ContentResolver;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
+import android.util.Log;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -51,6 +53,7 @@ public class MindRefRunner {
 
 
         for (MindRefFileData srcChild : fileData) {
+            Log.d(TAG, "Mirroring: " + srcChild.displayName + " to " + targetDir.getPath());
             if (srcChild.isDirectory) {
                 Path targetChildDir = combinePath(targetDir.getPath(), srcChild.displayName);
                 mirrorDirectory(srcChild.uri, targetChildDir.toFile(), contentResolver);

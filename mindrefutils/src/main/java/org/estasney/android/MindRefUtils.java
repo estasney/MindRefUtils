@@ -76,11 +76,14 @@ public class MindRefUtils {
      * @throws IOException Thrown when the target path is invalid (not a directory)
      */
     public void copyToAppStorage(int key) throws IOException {
-        Log.d(TAG, "copyToAppStorage - Start");
+        Log.d(TAG, "copyToAppStorage - Start - Operation Key: " + key);
         ContentResolver contentResolver = this.mContext.getContentResolver();
+        Log.d(TAG, "copyToAppStorage - Got ContentResolver");
         File targetFile = this.appStoragePath.toFile();
+        Log.d(TAG, "copyToAppStorage - Target File: " + targetFile.getAbsolutePath());
 
         // Creating the app storage directory if it doesn't exist
+        Log.d(TAG, "copyToAppStorage - ensureDirectoryExists: " + targetFile.getAbsolutePath());
         MindRefFileUtils.ensureDirectoryExists(targetFile);
 
         // Schedule a task
