@@ -56,6 +56,10 @@ public class MindRefRunner {
             Log.d(TAG, "Mirroring: " + srcChild.displayName + " to " + targetDir.getPath());
             if (srcChild.isDirectory) {
                 Path targetChildDir = combinePath(targetDir.getPath(), srcChild.displayName);
+                File targetChildDirFile = targetChildDir.toFile();
+                if (!targetChildDirFile.exists()) {
+                    MindRefFileUtils.ensureDirectoryExists(targetChildDirFile);
+                }
                 mirrorDirectory(srcChild.uri, targetChildDir.toFile(), contentResolver);
             } else {
                 Path targetChild = combinePath(targetDir.toString(), srcChild.displayName);
