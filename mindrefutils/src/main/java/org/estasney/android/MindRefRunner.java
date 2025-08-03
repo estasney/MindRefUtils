@@ -51,15 +51,24 @@ public class MindRefRunner {
      */
 
 
+
     public static void mirrorDirectory(Uri sourceFolderUri, File targetDir, ContentResolver contentResolver) throws IOException {
 
+
+        long startTime  = System.currentTimeMillis();
         MindRefFileData[] fileData = MindRefFileData.getChildrenFromUri(sourceFolderUri, contentResolver);
+        long endTime = System.currentTimeMillis();
+        Log.d(TAG, "getChildrenFromUri took: " + (endTime - startTime) + "ms for " + fileData.length + " items");
         // Gather targetDir Children - if not present in sourceFolder, they are deleted
         ArrayDeque<Path> targetDirPathDeque = new ArrayDeque<>();
         Stream<Path> targetDirFiles = Files.list(targetDir.toPath());
         targetDirFiles.forEach(targetDirPathDeque::add);
 
+        long[] mirrorTimes = new long[fileData.length];
+        int i = 0;
+
         for (MindRefFileData srcChild : fileData) {
+            long startMirrorTime = System.currentTimeMillis();
             Log.d(TAG, "Mirroring: " + srcChild.displayName + " to " + targetDir.getPath());
             if (srcChild.isDirectory) {
                 Path targetChildDir = combinePath(targetDir.getPath(), srcChild.displayName);
@@ -74,7 +83,18 @@ public class MindRefRunner {
                 mirrorFile(srcChild, targetChild.toFile(), contentResolver);
                 targetDirPathDeque.remove(targetChild);
             }
+            long endMirrorTime = System.currentTimeMillis();
+            mirrorTimes[i] = endMirrorTime - startMirrorTime;
+            i += 1;
         }
+
+        // Mean time for mirroring
+        long meanMirrorTime = 0;
+        for (long time : mirrorTimes) {
+            meanMirrorTime += time;
+        }
+        meanMirrorTime /= mirrorTimes.length;
+        Log.d(TAG, "Mean mirror time: " + meanMirrorTime + "ms");
 
         // Remove any children
         while (!targetDirPathDeque.isEmpty()) {
