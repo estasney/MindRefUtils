@@ -3,6 +3,7 @@ package org.estasney.android;
 import android.content.Context;
 import android.net.Uri;
 import android.provider.DocumentsContract;
+import android.util.Log;
 
 import java.io.File;
 import java.io.IOException;
@@ -11,9 +12,11 @@ import java.nio.file.Path;
 
 public class MindRefFileUtils {
 
+    private static final String TAG = "mindrefutils";
+
     /**
-    When using ACTION_OPEN_... the Uri is a 'content' form. We are working with DocumentProvider
-    and so need to convert it.
+     * When using ACTION_OPEN_... the Uri is a 'content' form. We are working with DocumentProvider
+     * and so need to convert it.
      */
     public static Uri contentToDocumentUri(Uri contentUri, Context context) {
         String contentDocumentId = DocumentsContract.getTreeDocumentId(contentUri);
@@ -25,21 +28,27 @@ public class MindRefFileUtils {
 
     /**
      * Checks if a directory exists. If not, creates the directory
+     *
      * @param dir File to check
      */
     public static void ensureDirectoryExists(File dir) throws IOException {
         if (dir.exists()) {
+            Log.d(TAG, "Directory already exists: " + dir);
             return;
         }
         boolean success = dir.mkdirs();
         if (!success) {
-            throw new IOException("Failed to create directory: "+dir);
+            Log.e(TAG, "Failed to create directory: " + dir);
+            throw new IOException("Failed to create directory: " + dir);
+        } else {
+            Log.d(TAG, "Created directory: " + dir);
         }
     }
 
     /**
      * Combine parts of a path
-     * @param head - String
+     *
+     * @param head   - String
      * @param pieces - One or more additional parts to join
      * @return String Path
      */
@@ -53,6 +62,7 @@ public class MindRefFileUtils {
 
     /**
      * Returns the name (without extension) of a file
+     *
      * @param fileName string filename
      * @return String, fileName without extension
      */

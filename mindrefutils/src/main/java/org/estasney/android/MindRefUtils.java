@@ -21,7 +21,9 @@ import java.nio.file.Path;
 import java.util.concurrent.Executors;
 
 
-/** @noinspection unused*/
+/**
+ * @noinspection unused
+ */
 public class MindRefUtils {
     private static final String TAG = "mindrefutils";
     private final ListeningExecutorService service;
@@ -29,6 +31,7 @@ public class MindRefUtils {
     private final Context mContext;
     private final Uri externalStorageUri;
     private final Path appStoragePath;
+
     public final String externalStorageRoot;
     public final String appStorageRoot;
     private MindRefUtilsCallback mindRefUtilsCallback;
@@ -61,6 +64,11 @@ public class MindRefUtils {
     }
 
     public void setMindRefCallback(MindRefUtilsCallback callback) {
+        Log.d(TAG, "setMindRefCallback - Callback set");
+        if (callback == null) {
+            Log.w(TAG, "setMindRefCallback - Callback is null, ignoring");
+            return;
+        }
         this.mindRefUtilsCallback = callback;
         this.haveMindRefUtilsCallback = true;
     }
@@ -78,7 +86,6 @@ public class MindRefUtils {
     public void copyToAppStorage(int key) throws IOException {
         Log.d(TAG, "copyToAppStorage - Start - Operation Key: " + key);
         ContentResolver contentResolver = this.mContext.getContentResolver();
-        Log.d(TAG, "copyToAppStorage - Got ContentResolver");
         File targetFile = this.appStoragePath.toFile();
         Log.d(TAG, "copyToAppStorage - Target File: " + targetFile.getAbsolutePath());
 
@@ -105,9 +112,16 @@ public class MindRefUtils {
                     }
 
                     public void onFailure(@NonNull Throwable t) {
+                        Log.e(TAG, "copyToAppStorage - Failure: ", t);
+
+
                         if (haveMindRefUtilsCallback) {
+                            Log.d(TAG, "copyToAppStorage - Callback onFailure");
                             mindRefUtilsCallback.onFailure(key);
+                        } else {
+                            Log.i(TAG, "copyToAppStorage - No Callback Registered - Cannot notify failure");
                         }
+
                     }
                 }
                 , service);

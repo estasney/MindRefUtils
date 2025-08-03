@@ -8,6 +8,8 @@ import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -78,7 +80,7 @@ public class MindRefRunner {
      * @throws IOException - Thrown when the directory does not exist
      */
 
-    public static void writeFileToExternal(Path sourcePath, String name, String mimeType, MindRefFileData externalDir,
+    public static void writeFileToExternal(Path sourcePath, String name, String mimeType, @NonNull MindRefFileData externalDir,
                                            ContentResolver contentResolver) throws IOException {
         // We need a URI for a directory so we query the root
         MindRefFileData externalTarget = externalDir.getOrMakeChild(contentResolver, name, mimeType);
