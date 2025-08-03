@@ -77,7 +77,7 @@ public class MindRefUtils {
      * Mirror External Storage to private App storage to allow working with files natively.
      * Newer Files in External Storage - Overwrite Older Files in App Storage
      * Files Present in External Storage - Write to App Storage
-     * Files Present in App Storage, but not External Storage - No op
+     * Files Present in App Storage, but not External Storage - Remove from App Storage
      * This is a slow operation
      *
      * @param key - Arbitrary int, will be passed to callback

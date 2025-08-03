@@ -10,6 +10,8 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import org.apache.commons.io.FileUtils;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -52,7 +54,10 @@ public class MindRefRunner {
     public static void mirrorDirectory(Uri sourceFolderUri, File targetDir, ContentResolver contentResolver) throws IOException {
 
         MindRefFileData[] fileData = MindRefFileData.getChildrenFromUri(sourceFolderUri, contentResolver);
-
+        // Gather targetDir Children - if not present in sourceFolder, they are deleted
+        ArrayDeque<Path> targetDirPathDeque = new ArrayDeque<>();
+        Stream<Path> targetDirFiles = Files.list(targetDir.toPath());
+        targetDirFiles.forEach(targetDirPathDeque::add);
 
         for (MindRefFileData srcChild : fileData) {
             Log.d(TAG, "Mirroring: " + srcChild.displayName + " to " + targetDir.getPath());
@@ -63,11 +68,29 @@ public class MindRefRunner {
                     MindRefFileUtils.ensureDirectoryExists(targetChildDirFile);
                 }
                 mirrorDirectory(srcChild.uri, targetChildDir.toFile(), contentResolver);
+                targetDirPathDeque.remove(targetChildDir);
             } else {
                 Path targetChild = combinePath(targetDir.toString(), srcChild.displayName);
                 mirrorFile(srcChild, targetChild.toFile(), contentResolver);
+                targetDirPathDeque.remove(targetChild);
             }
         }
+
+        // Remove any children
+        while (!targetDirPathDeque.isEmpty()) {
+            Path hangingChildPath = targetDirPathDeque.pop();
+
+            File hangingChildFile = hangingChildPath.toFile();
+            if (hangingChildFile.isDirectory()) {
+                Log.d(TAG, "Removing Dir: " + hangingChildPath);
+                FileUtils.deleteDirectory(hangingChildFile);
+            } else {
+                Log.d(TAG, "Removing File: " + hangingChildPath);
+                Files.delete(hangingChildPath);
+            }
+
+        }
+
     }
 
     /**
