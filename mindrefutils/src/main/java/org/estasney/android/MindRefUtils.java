@@ -107,7 +107,10 @@ public class MindRefUtils {
                     public void onSuccess(Boolean flag) {
                         Log.d(TAG, "copyToAppStorage - Finish");
                         if (haveMindRefUtilsCallback) {
+                            Log.d(TAG, "copyToAppStorage - Callback onComplete");
                             mindRefUtilsCallback.onComplete(key);
+                        } else {
+                            Log.i(TAG, "copyToAppStorage - No Callback Registered - Cannot notify completion");
                         }
                     }
 
