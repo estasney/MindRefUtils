@@ -31,12 +31,14 @@ public class MindRefRunner {
             long srcMod = srcFile.lastModified;
             long tgtMod = targetFile.lastModified();
             if (srcMod > tgtMod) {
-                InputStream inputStream = contentResolver.openInputStream(srcFile.uri);
-                Files.copy(inputStream, targetPath, REPLACE_EXISTING);
+                try (InputStream inputStream = contentResolver.openInputStream(srcFile.uri)) {
+                    Files.copy(inputStream, targetPath, REPLACE_EXISTING);
+                }
             }
         } else {
-            InputStream inputStream = contentResolver.openInputStream(srcFile.uri);
-            Files.copy(inputStream, targetPath);
+            try (InputStream inputStream = contentResolver.openInputStream(srcFile.uri)) {
+                Files.copy(inputStream, targetPath);
+            }
         }
     }
 
@@ -61,8 +63,9 @@ public class MindRefRunner {
         Log.d(TAG, "getChildrenFromUri took: " + (endTime - startTime) + "ms for " + fileData.length + " items");
         // Gather targetDir Children - if not present in sourceFolder, they are deleted
         ArrayDeque<Path> targetDirPathDeque = new ArrayDeque<>();
-        Stream<Path> targetDirFiles = Files.list(targetDir.toPath());
-        targetDirFiles.forEach(targetDirPathDeque::add);
+        try (Stream<Path> targetDirFiles = Files.list(targetDir.toPath())) {
+            targetDirFiles.forEach(targetDirPathDeque::add);
+        }
 
         long[] mirrorTimes = new long[fileData.length];
         int i = 0;
@@ -89,12 +92,14 @@ public class MindRefRunner {
         }
 
         // Mean time for mirroring
-        long meanMirrorTime = 0;
-        for (long time : mirrorTimes) {
-            meanMirrorTime += time;
+        if (mirrorTimes.length > 0) {
+            long meanMirrorTime = 0;
+            for (long time : mirrorTimes) {
+                meanMirrorTime += time;
+            }
+            meanMirrorTime /= mirrorTimes.length;
+            Log.d(TAG, "Mean mirror time: " + meanMirrorTime + "ms");
         }
-        meanMirrorTime /= mirrorTimes.length;
-        Log.d(TAG, "Mean mirror time: " + meanMirrorTime + "ms");
 
         // Remove any children
         while (!targetDirPathDeque.isEmpty()) {
@@ -132,11 +137,10 @@ public class MindRefRunner {
         byte[] srcData = Files.readAllBytes(sourcePath);
 
         // Now we have URI, open file descriptor and copy
-        ParcelFileDescriptor pfd = contentResolver.openFileDescriptor(externalTarget.uri, "w");
-        FileOutputStream fileOutputStream = new FileOutputStream(pfd.getFileDescriptor());
-        fileOutputStream.write(srcData);
-        fileOutputStream.close();
-        pfd.close();
+        try (ParcelFileDescriptor pfd = contentResolver.openFileDescriptor(externalTarget.uri, "w");
+             FileOutputStream fileOutputStream = new FileOutputStream(pfd.getFileDescriptor())) {
+            fileOutputStream.write(srcData);
+        }
     }
 
 
@@ -159,45 +163,20 @@ public class MindRefRunner {
 
         // Copy operation is not permitted by the provider, so we have to do it manually
         // Read the source file, we have to go through the ContentResolver since these are content:// uris
-        InputStream inputStream = contentResolver.openInputStream(sourceUri);
+        try (InputStream inputStream = contentResolver.openInputStream(sourceUri);
+             ParcelFileDescriptor pfd = contentResolver.openFileDescriptor(externalTarget.uri, "w");
+             FileOutputStream fileOutputStream = new FileOutputStream(pfd.getFileDescriptor())) {
 
-        // Now we have URI, open file descriptor and copy
-        ParcelFileDescriptor pfd = contentResolver.openFileDescriptor(externalTarget.uri, "w");
-        FileOutputStream fileOutputStream = new FileOutputStream(pfd.getFileDescriptor());
-
-        // Now we have the streams, copy the data over
-        // This could be potentially large files, so we use a buffer
-        byte[] buffer = new byte[1024];
-        int length;
-        while ((length = inputStream.read(buffer)) > 0) {
-            fileOutputStream.write(buffer, 0, length);
+            // Now we have the streams, copy the data over
+            // This could be potentially large files, so we use a buffer
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = inputStream.read(buffer)) > 0) {
+                fileOutputStream.write(buffer, 0, length);
+            }
         }
 
-        // Close the streams
-        inputStream.close();
-        fileOutputStream.close();
-        pfd.close();
-
         return externalTarget.uri;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     }
 
 }
