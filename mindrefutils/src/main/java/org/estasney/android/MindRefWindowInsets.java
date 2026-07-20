@@ -4,9 +4,12 @@ import android.app.Activity;
 import android.util.Log;
 import android.view.View;
 
+import androidx.core.graphics.ColorUtils;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 /**
  * Keeps the activity's content clear of the system bars.
@@ -22,20 +25,36 @@ public class MindRefWindowInsets {
     private static final String TAG = "mindrefutils";
 
     /**
-     * Install a listener that pads the activity's content view by the current insets.
+     * Pad the activity's content view by the current insets and fill the exposed edges.
      * <p>
-     * Safe to call from any thread, and safe to call more than once - the listener
-     * replaces any previously installed one.
+     * Padding the content view reveals whatever sits behind it, which is the theme's window
+     * background rather than anything the app drew. Painting the content view keeps those
+     * edges consistent with the caller's own background. System bar icons are switched to
+     * whichever contrast reads against that same colour, so the caller supplies one value
+     * rather than a colour and a matching flag that could disagree.
+     * <p>
+     * Safe to call from any thread, and safe to call more than once.
      *
-     * @param activity - Activity whose content view should be padded
+     * @param activity        - Activity whose content view should be padded
+     * @param backgroundColor - ARGB colour painted behind the system bars
      */
-    public static void applyToContentView(Activity activity) {
+    public static void applyToContentView(Activity activity, int backgroundColor) {
         activity.runOnUiThread(() -> {
             View content = activity.findViewById(android.R.id.content);
             if (content == null) {
                 Log.e(TAG, "applyToContentView - no content view found");
                 return;
             }
+
+            content.setBackgroundColor(backgroundColor);
+
+            boolean backgroundIsLight = ColorUtils.calculateLuminance(backgroundColor) > 0.5;
+            WindowInsetsControllerCompat controller =
+                    WindowCompat.getInsetsController(activity.getWindow(), content);
+            controller.setAppearanceLightStatusBars(backgroundIsLight);
+            controller.setAppearanceLightNavigationBars(backgroundIsLight);
+            Log.d(TAG, "applyToContentView - background " + Integer.toHexString(backgroundColor)
+                    + ", light bars " + backgroundIsLight);
 
             ViewCompat.setOnApplyWindowInsetsListener(content, (view, windowInsets) -> {
                 Insets safeArea = windowInsets.getInsets(
