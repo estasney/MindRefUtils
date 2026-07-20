@@ -1,6 +1,7 @@
 package org.estasney.android;
 
 import android.app.Activity;
+import android.graphics.drawable.ColorDrawable;
 import android.util.Log;
 import android.view.View;
 
@@ -30,13 +31,13 @@ public class MindRefWindowInsets {
      * Padding the content view reveals whatever sits behind it, which is the theme's window
      * background rather than anything the app drew. Painting the content view keeps those
      * edges consistent with the caller's own background. System bar icons are switched to
-     * whichever contrast reads against that same colour, so the caller supplies one value
-     * rather than a colour and a matching flag that could disagree.
+     * whichever contrast reads against that same color, so the caller supplies one value
+     * rather than a color and a matching flag that could disagree.
      * <p>
      * Safe to call from any thread, and safe to call more than once.
      *
      * @param activity        - Activity whose content view should be padded
-     * @param backgroundColor - ARGB colour painted behind the system bars
+     * @param backgroundColor - ARGB color painted behind the system bars
      */
     public static void applyToContentView(Activity activity, int backgroundColor) {
         activity.runOnUiThread(() -> {
@@ -45,7 +46,8 @@ public class MindRefWindowInsets {
                 Log.e(TAG, "applyToContentView - no content view found");
                 return;
             }
-
+            
+            activity.getWindow().setBackgroundDrawable(new ColorDrawable(backgroundColor));
             content.setBackgroundColor(backgroundColor);
 
             boolean backgroundIsLight = ColorUtils.calculateLuminance(backgroundColor) > 0.5;
