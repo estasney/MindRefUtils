@@ -14,6 +14,9 @@ android {
 
     testOptions {
         targetSdk = 35
+        unitTests {
+            returnDefaultValues = true
+        }
     }
 
     buildTypes {
